@@ -8,7 +8,7 @@ class Card:
             suit (str): The suit of the card ("Hearts", "Diamonds", "Clubs", "Spades").
             rank (str): The rank of the card ("2", "3", ..., "10", "J", "Q", "K", "A").
         """
-
+        
         try:
             valid_suits = ["Hearts", "Diamonds", "Clubs", "Spades"]
             valid_ranks = [

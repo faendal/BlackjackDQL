@@ -7,7 +7,7 @@ from src.ReplayBuffer import ReplayBuffer
 
 
 class Agent:
-    """Interacts with and learns from the Blackjack environment using Deep Q-Learning."""
+    """Interacts with and learns from the Blackjack environment using Double DQN."""
 
     def __init__(
         self,
@@ -67,16 +67,7 @@ class Agent:
         next_state: np.ndarray,
         done: bool,
     ) -> None:
-        """
-        Save experience in replay memory and learn every few time steps.
-
-        Args:
-            state (np.ndarray): Current state.
-            action (int): Action taken.
-            reward (float): Reward received.
-            next_state (np.ndarray): Next state.
-            done (bool): Whether the episode ended.
-        """
+        """Save experience in replay memory and learn every few time steps."""
         try:
             self.memory.add(state, action, reward, next_state, done)
             self.t_step = (self.t_step + 1) % self.update_every
@@ -87,16 +78,7 @@ class Agent:
             raise ValueError(f"Error in step() of Agent: {str(e)}") from e
 
     def act(self, state: np.ndarray, eps: float = 0.0) -> int:
-        """
-        Returns actions for given state as per current policy.
-
-        Args:
-            state (np.ndarray): Current state.
-            eps (float, optional): Epsilon for exploration. Defaults to 0.0.
-
-        Returns:
-            int: Selected action.
-        """
+        """Returns actions for given state as per current policy."""
         try:
             state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
             self.qnetwork_local.eval()
@@ -112,44 +94,48 @@ class Agent:
             raise ValueError(f"Error in act() of Agent: {str(e)}") from e
 
     def learn(self, experiences: tuple, gamma: float) -> None:
-        """
-        Update value parameters using given batch of experience tuples.
-
-        Args:
-            experiences (tuple): Tuple of (s, a, r, s', done) tuples.
-            gamma (float): Discount factor.
-        """
+        """Update value parameters using given batch of experience tuples."""
         try:
             states, actions, rewards, next_states, dones = experiences
 
-            Q_targets_next = (
-                self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+            # ---- DOUBLE DQN UPDATE ----
+            # Find best action from local network
+            best_actions = (
+                self.qnetwork_local(next_states).detach().argmax(1).unsqueeze(1)
             )
+            # Evaluate best actions using target network
+            Q_targets_next = self.qnetwork_target(next_states).gather(1, best_actions)
+
+            # Compute Q targets for current states
             Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
+            # Get expected Q values from local model
             Q_expected = self.qnetwork_local(states).gather(1, actions)
 
+            # Compute loss
             loss = F.mse_loss(Q_expected, Q_targets)
 
+            # Optimize the model
             self.optimizer.zero_grad()
             loss.backward()
+
+            # ---- GRADIENT CLIPPING ----
+            torch.nn.utils.clip_grad_norm_(
+                self.qnetwork_local.parameters(), max_norm=1.0
+            )
+
             self.optimizer.step()
 
+            # Soft update target network
             self.soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
+
         except Exception as e:
             raise ValueError(f"Error in learn() of Agent: {str(e)}") from e
 
     def soft_update(
         self, local_model: torch.nn.Module, target_model: torch.nn.Module, tau: float
     ) -> None:
-        """
-        Soft update model parameters.
-
-        Args:
-            local_model (torch.nn.Module): Weights will be copied from this model.
-            target_model (torch.nn.Module): Weights will be copied to this model.
-            tau (float): Interpolation parameter.
-        """
+        """Soft update model parameters."""
         try:
             for target_param, local_param in zip(
                 target_model.parameters(), local_model.parameters()

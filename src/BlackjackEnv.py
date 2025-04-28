@@ -1,14 +1,14 @@
-from src.Deck import Deck
+from src.Shoe import Shoe
 from src.Hand import Hand
 
 
 class BlackjackEnv:
-    """A Blackjack environment where a player competes against a dealer with improved reward shaping."""
+    """A Blackjack environment where a player competes against a dealer with a shoe and better reward shaping."""
 
     def __init__(self) -> None:
         """Initialize the Blackjack environment."""
         try:
-            self.deck: Deck = Deck()
+            self.deck: Shoe = Shoe(num_decks=4)
             self.player_hand: Hand = Hand()
             self.dealer_hand: Hand = Hand()
             self.done: bool = False
@@ -22,7 +22,6 @@ class BlackjackEnv:
             tuple[float, float, bool]: The initial normalized state.
         """
         try:
-            self.deck = Deck()
             self.player_hand = Hand()
             self.dealer_hand = Hand()
             self.done = False
@@ -61,16 +60,16 @@ class BlackjackEnv:
                     self.done = True
                     return self._get_state(), -1.0, self.done, {"result": "player_bust"}
                 elif 17 <= player_value <= 21:
-                    return self._get_state(), 0.05, self.done, {}
+                    return self._get_state(), 0.2, self.done, {}
                 else:
-                    return self._get_state(), -0.01, self.done, {}
+                    return self._get_state(), -0.1, self.done, {}
 
             # Player sticks
             self.done = True
             player_value = self.player_hand.get_value()
 
             if 18 <= player_value <= 21:
-                reward = 0.1
+                reward = 0.5
             else:
                 reward = 0.0
 

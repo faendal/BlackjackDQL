@@ -11,15 +11,15 @@ sns.set_palette("Set1")
 
 
 class Trainer:
-    """Trainer class to handle the training of a DQN agent on the Blackjack environment."""
+    """Trainer class to handle the training of a Double DQN agent on the Blackjack environment."""
 
     def __init__(
         self,
         n_episodes: int = 50000,
         max_t: int = 100,
         eps_start: float = 1.0,
-        eps_end: float = 0.01,
-        eps_decay: float = 0.9995,
+        eps_end: float = 0.05,
+        eps_decay: float = 0.995,
         model_save_path: str = "models/",
         load_model_path: str | None = None,
         device: torch.device = torch.device(
@@ -27,20 +27,7 @@ class Trainer:
         ),
         seed: int = 0,
     ) -> None:
-        """
-        Initialize the Trainer.
-
-        Args:
-            n_episodes (int, optional): Number of training episodes. Defaults to 5000.
-            max_t (int, optional): Maximum steps per episode. Defaults to 100.
-            eps_start (float, optional): Starting epsilon value. Defaults to 1.0.
-            eps_end (float, optional): Minimum epsilon value. Defaults to 0.01.
-            eps_decay (float, optional): Epsilon decay rate. Defaults to 0.995.
-            model_save_path (str, optional): Path to save models. Defaults to "models/".
-            load_model_path (str | None, optional): Path to load existing model. Defaults to None.
-            device (torch.device, optional): Device for computation. Defaults to CUDA if available.
-            seed (int, optional): Random seed. Defaults to 0.
-        """
+        """Initialize the Trainer."""
         try:
             self.device = device
             self.env = BlackjackEnv()
@@ -55,10 +42,8 @@ class Trainer:
             self.model_save_path = model_save_path
             self.scores: list[float] = []
             self.best_avg_score = -float("inf")
-            self.early_stop_counter = 0
-            self.patience = 1000
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.agent.optimizer, mode="max", factor=0.5, patience=500
+                self.agent.optimizer, mode="max", factor=0.5, patience=300
             )
 
             if load_model_path:
@@ -86,7 +71,6 @@ class Trainer:
                 self.scores.append(score)
                 eps = max(self.eps_end, self.eps_decay * eps)
 
-                # Every 100 episodes, print moving average
                 if i_episode % 100 == 0:
                     moving_avg = np.mean(self.scores[-100:])
                     print(
@@ -98,18 +82,6 @@ class Trainer:
                     if moving_avg > self.best_avg_score:
                         self.best_avg_score = moving_avg
                         self.save_model("dqn_blackjack_best.pth")
-                        print(
-                            f"New best model saved at episode {i_episode} with moving average {moving_avg:.2f}."
-                        )
-                        self.early_stop_counter = 0
-                    else:
-                        self.early_stop_counter += 100
-
-                    if self.early_stop_counter >= self.patience:
-                        print(
-                            f"Early stopping triggered at episode {i_episode}. No improvement in {self.patience} episodes."
-                        )
-                        break
 
         except Exception as e:
             raise ValueError(f"Error during training in Trainer: {str(e)}") from e
