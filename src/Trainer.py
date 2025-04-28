@@ -54,6 +54,12 @@ class Trainer:
             self.eps_decay = eps_decay
             self.model_save_path = model_save_path
             self.scores: list[float] = []
+            self.best_avg_score = -float("inf")
+            self.early_stop_counter = 0
+            self.patience = 500
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.agent.optimizer, mode="max", factor=0.5, patience=200
+            )
 
             if load_model_path:
                 self.load_model(load_model_path)
@@ -87,6 +93,19 @@ class Trainer:
                     print(
                         f"Episode {i_episode}/{self.n_episodes}, Average Score: {avg_score:.2f}"
                     )
+
+                    self.scheduler.step(avg_score)
+
+                    if avg_score > self.best_avg_score:
+                        self.best_avg_score = avg_score
+                        self.save_model("dqn_blackjack_best.pth")
+                        self.early_stop_counter = 0
+                    else:
+                        self.early_stop_counter += 100
+
+                    if self.early_stop_counter >= self.patience:
+                        print(f"Early stopping triggered at episode {i_episode}.")
+                        break
 
         except Exception as e:
             raise ValueError(f"Error during training in Trainer: {str(e)}") from e

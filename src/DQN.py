@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class DQN(nn.Module):
@@ -18,10 +17,11 @@ class DQN(nn.Module):
         try:
             super(DQN, self).__init__()
             self.seed = torch.manual_seed(seed)
-            self.fc1 = nn.Linear(state_size, 128)
-            self.fc2 = nn.Linear(128, 64)
-            self.fc3 = nn.Linear(64, 32)
-            self.fc4 = nn.Linear(32, action_size)
+            self.fc1 = nn.Linear(state_size, 256)
+            self.fc2 = nn.Linear(256, 128)
+            self.fc3 = nn.Linear(128, 64)
+            self.fc4 = nn.Linear(64, action_size)
+            self.leaky_relu = nn.LeakyReLU(negative_slope=0.01)
         except Exception as e:
             raise ValueError(f"Error initializing DQN: {str(e)}") from e
 
@@ -36,9 +36,9 @@ class DQN(nn.Module):
             torch.Tensor: Q-values for each action.
         """
         try:
-            x = F.relu(self.fc1(state))
-            x = F.relu(self.fc2(x))
-            x = F.relu(self.fc3(x))
+            x = self.leaky_relu(self.fc1(state))
+            x = self.leaky_relu(self.fc2(x))
+            x = self.leaky_relu(self.fc3(x))
             return self.fc4(x)
         except Exception as e:
             raise ValueError(f"Error during forward pass in DQN: {str(e)}") from e

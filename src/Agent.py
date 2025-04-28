@@ -16,10 +16,10 @@ class Agent:
         device: torch.device,
         seed: int = 0,
         buffer_size: int = int(1e5),
-        batch_size: int = 64,
+        batch_size: int = 256,
         gamma: float = 0.99,
         tau: float = 1e-3,
-        lr: float = 5e-4,
+        lr: float = 1e-3,
         update_every: int = 4,
     ) -> None:
         """
@@ -43,21 +43,17 @@ class Agent:
             self.device = device
             self.seed = random.seed(seed)
 
-            # Q-Networks
             self.qnetwork_local = DQN(state_size, action_size, seed).to(self.device)
             self.qnetwork_target = DQN(state_size, action_size, seed).to(self.device)
             self.optimizer = torch.optim.Adam(self.qnetwork_local.parameters(), lr=lr)
 
-            # Replay memory
             self.memory = ReplayBuffer(action_size, buffer_size, batch_size, device)
             self.batch_size = batch_size
 
-            # Hyperparameters
             self.gamma = gamma
             self.tau = tau
             self.update_every = update_every
 
-            # Time step counter for learning
             self.t_step = 0
 
         except Exception as e:
@@ -83,7 +79,6 @@ class Agent:
         """
         try:
             self.memory.add(state, action, reward, next_state, done)
-
             self.t_step = (self.t_step + 1) % self.update_every
             if self.t_step == 0 and len(self.memory) > self.batch_size:
                 experiences = self.memory.sample()
@@ -127,25 +122,19 @@ class Agent:
         try:
             states, actions, rewards, next_states, dones = experiences
 
-            # Get max predicted Q values from target model
             Q_targets_next = (
                 self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
             )
-            # Compute Q targets for current states
             Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
-            # Get expected Q values from local model
             Q_expected = self.qnetwork_local(states).gather(1, actions)
 
-            # Compute loss
             loss = F.mse_loss(Q_expected, Q_targets)
 
-            # Minimize the loss
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-            # Soft update target network
             self.soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
         except Exception as e:
             raise ValueError(f"Error in learn() of Agent: {str(e)}") from e
