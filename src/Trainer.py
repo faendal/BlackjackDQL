@@ -15,11 +15,11 @@ class Trainer:
 
     def __init__(
         self,
-        n_episodes: int = 5000,
+        n_episodes: int = 50000,
         max_t: int = 100,
         eps_start: float = 1.0,
         eps_end: float = 0.01,
-        eps_decay: float = 0.995,
+        eps_decay: float = 0.9995,
         model_save_path: str = "models/",
         load_model_path: str | None = None,
         device: torch.device = torch.device(
@@ -56,9 +56,9 @@ class Trainer:
             self.scores: list[float] = []
             self.best_avg_score = -float("inf")
             self.early_stop_counter = 0
-            self.patience = 500
+            self.patience = 1000
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.agent.optimizer, mode="max", factor=0.5, patience=200
+                self.agent.optimizer, mode="max", factor=0.5, patience=500
             )
 
             if load_model_path:
@@ -68,9 +68,7 @@ class Trainer:
             raise ValueError(f"Error initializing Trainer: {str(e)}") from e
 
     def train(self) -> None:
-        """
-        Train the agent in the Blackjack environment.
-        """
+        """Train the agent in the Blackjack environment."""
         try:
             eps = self.eps_start
             for i_episode in range(1, self.n_episodes + 1):
@@ -88,35 +86,36 @@ class Trainer:
                 self.scores.append(score)
                 eps = max(self.eps_end, self.eps_decay * eps)
 
+                # Every 100 episodes, print moving average
                 if i_episode % 100 == 0:
-                    avg_score = np.mean(self.scores[-100:])
+                    moving_avg = np.mean(self.scores[-100:])
                     print(
-                        f"Episode {i_episode}/{self.n_episodes}, Average Score: {avg_score:.2f}"
+                        f"Episode {i_episode}/{self.n_episodes}, Moving Average Score: {moving_avg:.2f}"
                     )
 
-                    self.scheduler.step(avg_score)
+                    self.scheduler.step(moving_avg)
 
-                    if avg_score > self.best_avg_score:
-                        self.best_avg_score = avg_score
+                    if moving_avg > self.best_avg_score:
+                        self.best_avg_score = moving_avg
                         self.save_model("dqn_blackjack_best.pth")
+                        print(
+                            f"New best model saved at episode {i_episode} with moving average {moving_avg:.2f}."
+                        )
                         self.early_stop_counter = 0
                     else:
                         self.early_stop_counter += 100
 
                     if self.early_stop_counter >= self.patience:
-                        print(f"Early stopping triggered at episode {i_episode}.")
+                        print(
+                            f"Early stopping triggered at episode {i_episode}. No improvement in {self.patience} episodes."
+                        )
                         break
 
         except Exception as e:
             raise ValueError(f"Error during training in Trainer: {str(e)}") from e
 
     def save_model(self, filename: str = "dqn_blackjack.pth") -> None:
-        """
-        Save the local model to file.
-
-        Args:
-            filename (str, optional): Filename for saving. Defaults to "dqn_blackjack.pth".
-        """
+        """Save the local model to file."""
         try:
             if not os.path.exists(self.model_save_path):
                 os.makedirs(self.model_save_path)
@@ -128,12 +127,7 @@ class Trainer:
             raise ValueError(f"Error saving model in Trainer: {str(e)}") from e
 
     def load_model(self, filepath: str) -> None:
-        """
-        Load a pre-trained model from file.
-
-        Args:
-            filepath (str): Path to the model file.
-        """
+        """Load a pre-trained model from file."""
         try:
             self.agent.qnetwork_local.load_state_dict(
                 torch.load(filepath, map_location=self.device)
@@ -146,15 +140,23 @@ class Trainer:
             raise ValueError(f"Error loading model in Trainer: {str(e)}") from e
 
     def plot_scores(self) -> None:
-        """
-        Plot the scores over episodes.
-        """
+        """Plot the scores over episodes."""
         try:
             plt.figure(figsize=(10, 6))
-            plt.plot(np.arange(len(self.scores)), self.scores)
+            plt.plot(
+                np.arange(len(self.scores)), self.scores, label="Score per Episode"
+            )
+            moving_avg = np.convolve(self.scores, np.ones(100) / 100, mode="valid")
+            plt.plot(
+                np.arange(len(moving_avg)),
+                moving_avg,
+                label="Moving Average (100 episodes)",
+                linestyle="--",
+            )
             plt.xlabel("Episode")
             plt.ylabel("Score")
             plt.title("Training Progress")
+            plt.legend()
             plt.grid(True)
             plt.show()
         except Exception as e:

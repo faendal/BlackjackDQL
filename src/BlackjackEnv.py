@@ -3,12 +3,10 @@ from src.Hand import Hand
 
 
 class BlackjackEnv:
-    """A Blackjack environment where a player competes against a dealer."""
+    """A Blackjack environment where a player competes against a dealer with improved reward shaping."""
 
     def __init__(self) -> None:
-        """
-        Initialize the Blackjack environment.
-        """
+        """Initialize the Blackjack environment."""
         try:
             self.deck: Deck = Deck()
             self.player_hand: Hand = Hand()
@@ -17,12 +15,11 @@ class BlackjackEnv:
         except Exception as e:
             raise ValueError(f"Error initializing BlackjackEnv: {str(e)}") from e
 
-    def reset(self) -> tuple[int, int, bool]:
-        """
-        Reset the environment and deal initial cards.
+    def reset(self) -> tuple[float, float, bool]:
+        """Reset the environment and deal initial cards.
 
         Returns:
-            tuple[int, int, bool]: The initial state (player_sum, dealer_visible_card_value, usable_ace)
+            tuple[float, float, bool]: The initial normalized state.
         """
         try:
             self.deck = Deck()
@@ -38,12 +35,11 @@ class BlackjackEnv:
         except Exception as e:
             raise ValueError(f"Error resetting BlackjackEnv: {str(e)}") from e
 
-    def step(self, action: int) -> tuple[tuple[int, int, bool], int, bool, dict]:
-        """
-        Take an action in the environment.
+    def step(self, action: int) -> tuple[tuple[float, float, bool], float, bool, dict]:
+        """Take an action in the environment.
 
         Args:
-            action (int): 0 for stick, 1 for hit
+            action (int): 0 for stick, 1 for hit.
 
         Returns:
             tuple: (next_state, reward, done, info)
@@ -59,54 +55,64 @@ class BlackjackEnv:
 
             if action == 1:
                 self.player_hand.add_card(self.deck.deal_card())
-                if self.player_hand.get_value() > 21:
-                    self.done = True
-                    return self._get_state(), -1, self.done, {"result": "player_bust"}
-                else:
-                    return self._get_state(), 0, self.done, {}
+                player_value = self.player_hand.get_value()
 
-            # Player sticks -> Dealer's turn
+                if player_value > 21:
+                    self.done = True
+                    return self._get_state(), -1.0, self.done, {"result": "player_bust"}
+                elif 17 <= player_value <= 21:
+                    return self._get_state(), 0.05, self.done, {}
+                else:
+                    return self._get_state(), -0.01, self.done, {}
+
+            # Player sticks
             self.done = True
+            player_value = self.player_hand.get_value()
+
+            if 18 <= player_value <= 21:
+                reward = 0.1
+            else:
+                reward = 0.0
+
             while self.dealer_hand.get_value() < 17:
                 self.dealer_hand.add_card(self.deck.deal_card())
 
-            player_value = self.player_hand.get_value()
             dealer_value = self.dealer_hand.get_value()
 
             if dealer_value > 21 or player_value > dealer_value:
-                reward = 1
+                reward += 1.0
                 result = "player_win"
             elif player_value < dealer_value:
-                reward = -1
+                reward -= 1.0
                 result = "player_lose"
             else:
-                reward = 0
                 result = "draw"
 
             return self._get_state(), reward, self.done, {"result": result}
+
         except Exception as e:
             raise ValueError(f"Error during step in BlackjackEnv: {str(e)}") from e
 
-    def _get_state(self) -> tuple[int, int, bool]:
-        """
-        Get the current state representation.
+    def _get_state(self) -> tuple[float, float, bool]:
+        """Get the normalized current state representation.
 
         Returns:
-            tuple[int, int, bool]: (player_total, dealer_visible_card_value, usable_ace)
+            tuple[float, float, bool]: (normalized_player_total, normalized_dealer_visible_card, usable_ace)
         """
         try:
             player_value = self.player_hand.get_value()
             dealer_visible_card = self.dealer_hand.cards[0].value
             usable_ace = self.player_hand.has_usable_ace()
 
-            return (player_value, dealer_visible_card, usable_ace)
+            normalized_player = player_value / 32.0
+            normalized_dealer = dealer_visible_card / 11.0
+
+            return (normalized_player, normalized_dealer, usable_ace)
         except Exception as e:
             raise ValueError(f"Error getting state in BlackjackEnv: {str(e)}") from e
 
     def render(self) -> None:
-        """
-        Render the current game state.
-        """
+        """Render the current game state."""
         try:
             print(
                 f"\nPlayer's hand: {self.player_hand} (Value: {self.player_hand.get_value()})"

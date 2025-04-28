@@ -27,7 +27,7 @@ BlackjackDQN/
 
 ---
 
-## 🎮 How to Play Against the Trained AI
+## How to Play Against the Trained AI
 
 1. Make sure the model `models/dqn_blackjack.pth` exists.
 2. Run the Streamlit app:
